@@ -4,7 +4,11 @@ module.exports=(app,uni)=>{
  const url=process.env.DATABASE_URL;if(!url){console.warn('DATABASE_URL ausente: multiplayer desativado');return;}
  const pool=new Pool({connectionString:url,ssl:(()=>{const h=new URL(url).hostname;return process.env.PGSSL==='0'||(!process.env.PGSSL&&(!h.includes('.')||h==='localhost'))?false:{rejectUnauthorized:false};})()});
  const q=(s,a)=>pool.query(s,a).then(r=>r.rows);
- const ready=pool.query(fs.readFileSync(__dirname+'/pg.sql','utf8')).then(()=>console.log('Postgres OK'));
+ const ready=pool.query(fs.readFileSync(__dirname+'/pg.sql','utf8')).then(()=>console.log('Postgres OK')).then(purgeTest);
+ // Limpeza de usuários de teste: defina PURGE_TEST_USERS (regex de apelidos) nas variáveis do Render, faça deploy e depois remova.
+ async function purgeTest(){const re=process.env.PURGE_TEST_USERS;if(!re)return;const us=(await pool.query('SELECT id,nick FROM users WHERE nick ~ $1',[re])).rows;
+  for(const u of us){await pool.query('DELETE FROM rooms WHERE owner_id=$1',[u.id]);await pool.query('DELETE FROM room_managers WHERE user_id=$1',[u.id]);await pool.query('DELETE FROM watchlist WHERE user_id=$1',[u.id]);await pool.query('DELETE FROM users WHERE id=$1',[u.id]);}
+  console.log('Usuários de teste apagados:',us.map(u=>u.nick).join(', ')||'nenhum');}
  const hash=(p,salt=crypto.randomBytes(16).toString('hex'))=>salt+':'+crypto.scryptSync(p,salt,32).toString('hex');
  const check=(p,h)=>{const [s]=h.split(':');return crypto.timingSafeEqual(Buffer.from(hash(p,s)),Buffer.from(h));};
  const tokenOf=r=>(r.headers.authorization||'').replace('Bearer ','')||(r.headers.cookie||'').match(/mc_token=([a-f0-9]+)/)?.[1];

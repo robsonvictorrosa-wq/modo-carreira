@@ -59,7 +59,7 @@ module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump,R})=>{
     const rank=free?99:s.squad.indexOf(p)+1;const imp=free?{k:'reserva',f:0}:rank<=3?{k:'chave',f:1.55}:rank<=11?{k:'titular',f:1.3}:rank<=18?{k:'rotação',f:1.05}:{k:'reserva',f:.85};
     const dClub=free?0:repOf(c)-repOf(s),dLeague=free?0:la(c)-la(s);
     if(!free&&p.overall>=78&&dClub<=-6&&p.age<30)continue;if(!free&&p.age<29&&dLeague<=-6)continue;
-    if(!free&&imp.k==='chave'&&dClub<3)continue;if(!free&&p.age>=33&&!X.VET_DEST.has(c.country)&&rnd()<0.85)continue;                          // titular-chave só sai para clube maior
+    if(!free&&imp.k==='chave'&&(dClub<3||rnd()<0.75))continue;if(!free&&p.age>=33&&!X.VET_DEST.has(c.country)&&rnd()<0.85)continue;                          // titular-chave só sai para clube maior
     let loan=false,price=free?0:X.askPrice(p,{imp,season:room.season,day:win.day,days:win.days,sellerBudget:s.budget,salt:room.id});
     if(!free&&p.age<=21&&rank>16&&repOf(s)>repOf(c)+3&&price>c.budget*0.5){loan=true;price=0;}
     if(price>c.budget*0.7)continue;const wage=X.wround((p.wage||1000)*(free?1:1.15+(dClub<-3?0.04*(-dClub-3):0)));if(c.wage_bill+wage>c.wage_budget*1.02&&wage>(p.wage||0))continue;
