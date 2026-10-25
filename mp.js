@@ -31,7 +31,7 @@ module.exports=(app,uni)=>{
    await c.query('COMMIT');s.json(room);}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}}));
  app.post('/api/rooms/join',auth,wrap(async(r,s)=>{const cd=String(r.body?.code||'').trim().toUpperCase();const [room]=await q('SELECT * FROM rooms WHERE code=$1',[cd]);if(!room)throw fail('Código não encontrado',404);
   const ms=await q('SELECT user_id FROM room_managers WHERE room_id=$1',[room.id]);if(ms.some(m=>m.user_id===r.user.id))return s.json(room);
-  if(ms.length>=room.max_managers)throw fail('Sala cheia ('+room.max_managers+' técnicos)');
+  if(room.status!=='lobby')throw fail('A temporada já começou nesta sala');if(ms.length>=room.max_managers)throw fail('Sala cheia ('+room.max_managers+' técnicos)');
   await q('INSERT INTO room_managers(room_id,user_id) VALUES($1,$2)',[room.id,r.user.id]);await bump(room.id,r.user.nick+' entrou na sala');s.json(room);}));
  const bump=(id,t)=>q('INSERT INTO room_events(room_id,text) VALUES($1,$2)',[id,t]).then(()=>q('UPDATE rooms SET version=version+1 WHERE id=$1',[id]));
  const member=async(r)=>{const [room]=await q('SELECT r.* FROM rooms r JOIN room_managers m ON m.room_id=r.id AND m.user_id=$2 WHERE r.code=$1',[String(r.params.code).toUpperCase(),r.user.id]);if(!room)throw fail('Você não está nessa sala',403);return room;};
@@ -60,4 +60,5 @@ module.exports=(app,uni)=>{
   const [rc]=await q('SELECT budget,wage_budget FROM room_clubs WHERE room_id=$1 AND club_id=$2',[room.id,m.club_id]);
   const c=uni.prepare('SELECT c.*,l.name league FROM clubs c JOIN leagues l ON l.id=c.league_id WHERE c.id=?').get(m.club_id);
   s.json({room,club:{...c,budget:+rc.budget,wage_budget:+rc.wage_budget,wage_bill:pl.reduce((a,p)=>a+(+p.wage||0),0),squad_value:pl.reduce((a,p)=>a+(+p.market_value||0),0),players:pl}});}));
+ require('./season')({app,uni,q,pool,auth,wrap,fail,member,bump});
 };
