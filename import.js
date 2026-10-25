@@ -1,6 +1,6 @@
 // Importa data/fc27.json -> data/game.db
 const fs=require('fs'),D=require('better-sqlite3');
-const src=JSON.parse(fs.readFileSync(__dirname+'/data/fc27.json','utf8'));
+const src=JSON.parse(require('zlib').gunzipSync(fs.readFileSync(__dirname+'/data/fc27.json.gz')).toString('utf8'));
 if(fs.existsSync(__dirname+'/data/game.db'))fs.unlinkSync(__dirname+'/data/game.db');
 const db=new D(__dirname+'/data/game.db');
 db.exec(fs.readFileSync(__dirname+'/schema.sql','utf8'));
