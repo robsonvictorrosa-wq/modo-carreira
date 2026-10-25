@@ -53,12 +53,14 @@ module.exports=(app,uni)=>{
  // Minha carreira: elenco da sala = universo + overrides da sala
  app.get('/api/rooms/:code/career',auth,wrap(async(r,s)=>{const room=await member(r);const [m]=await q('SELECT club_id FROM room_managers WHERE room_id=$1 AND user_id=$2',[room.id,r.user.id]);
   if(!m.club_id)return s.json({room,club:null});
-  const ov=await q('SELECT * FROM room_players WHERE room_id=$1',[room.id]);const om=new Map(ov.map(o=>[o.player_id,o]));
-  let pl=uni.prepare('SELECT * FROM players WHERE club_id=?').all(m.club_id).filter(p=>!om.has(p.id));
-  const extra=ov.filter(o=>o.club_id===m.club_id).map(o=>({...uni.prepare('SELECT * FROM players WHERE id=?').get(o.player_id),...Object.fromEntries(Object.entries(o).filter(([k,v])=>v!=null&&!['room_id','player_id'].includes(k)))}));
-  pl=pl.concat(extra).map(p=>({...p,positions:JSON.parse(p.positions),stats:JSON.parse(p.stats)})).sort((a,b)=>b.overall-a.overall);
+  const pl=(await R.squad(pool,room.id,m.club_id)).sort((a,b)=>b.overall-a.overall);
   const [rc]=await q('SELECT budget,wage_budget FROM room_clubs WHERE room_id=$1 AND club_id=$2',[room.id,m.club_id]);
   const c=uni.prepare('SELECT c.*,l.name league FROM clubs c JOIN leagues l ON l.id=c.league_id WHERE c.id=?').get(m.club_id);
   s.json({room,club:{...c,budget:+rc.budget,wage_budget:+rc.wage_budget,wage_bill:pl.reduce((a,p)=>a+(+p.wage||0),0),squad_value:pl.reduce((a,p)=>a+(+p.market_value||0),0),players:pl}});}));
- require('./season')({app,uni,q,pool,auth,wrap,fail,member,bump});
+ const R=require('./roster')(uni);
+ const M=require('./market')({app,uni,q,pool,auth,wrap,fail,member,bump,R});
+ require('./season')({app,uni,q,pool,auth,wrap,fail,member,bump,R,M});
+ // apagar a própria conta (usado também para limpar usuários de teste): exige PIN
+ app.delete('/api/me',auth,wrap(async(r,s)=>{const [u]=await q('SELECT * FROM users WHERE id=$1',[r.user.id]);if(!check(String(r.body?.pin||''),u.pass_hash))throw fail('PIN incorreto',401);
+  await q('DELETE FROM rooms WHERE owner_id=$1',[u.id]);await q('DELETE FROM room_managers WHERE user_id=$1',[u.id]);await q('DELETE FROM watchlist WHERE user_id=$1',[u.id]);await q('DELETE FROM users WHERE id=$1',[u.id]);s.json({ok:1});}));
 };

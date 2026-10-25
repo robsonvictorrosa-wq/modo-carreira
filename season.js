@@ -1,12 +1,9 @@
 // Etapa 3: temporada, calendário, escalação, avanço rodada a rodada
 const S=require('./sim');
-module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump})=>{
+module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump,R,M})=>{
  const club=id=>uni.prepare('SELECT c.id,c.name,c.overall,c.league_id,l.name league FROM clubs c JOIN leagues l ON l.id=c.league_id WHERE c.id=?').get(id);
  const pp=p=>({...p,positions:JSON.parse(p.positions||'[]'),stats:JSON.parse(p.stats||'{}')});
- async function squad(db,roomId,clubId){const ov=(await db.query('SELECT * FROM room_players WHERE room_id=$1 AND (club_id=$2 OR player_id IN (SELECT player_id FROM room_players WHERE room_id=$1))',[roomId,clubId])).rows;const om=new Map(ov.map(o=>[o.player_id,o]));
-  const base=uni.prepare('SELECT * FROM players WHERE club_id=?').all(clubId).filter(p=>!om.has(p.id));
-  const extra=ov.filter(o=>o.club_id===clubId).map(o=>({...uni.prepare('SELECT * FROM players WHERE id=?').get(o.player_id),club_id:clubId}));
-  return base.concat(extra).map(pp);}
+ const squad=(db,roomId,clubId)=>R.squad(db,roomId,clubId);
  async function xiFor(db,roomId,clubId){const sq=await squad(db,roomId,clubId);const [l]=(await db.query('SELECT * FROM lineups WHERE room_id=$1 AND club_id=$2',[roomId,clubId])).rows;
   if(l&&l.starters?.length===11){const m=new Map(sq.map(p=>[p.id,p]));const xi=l.starters.map(id=>m.get(id)).filter(Boolean);if(xi.length===11)return {xi,formation:l.formation,custom:true};}
   const f=l?.formation||'4-3-3';return {xi:S.autoXI(sq,f),formation:f,custom:false};}
@@ -21,7 +18,7 @@ module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump})=>{
     const {rows:[comp]}=await c.query('INSERT INTO competitions(room_id,season,league_id,name,rounds_total) VALUES($1,$2,$3,$4,$5) RETURNING id',[room.id,room.season,lid,L.name,rounds.length]);
     const vals=[];rounds.forEach((m,i)=>m.forEach(([h,a])=>vals.push([comp.id,i+1,h,a])));
     await c.query('INSERT INTO matches(comp_id,round,home,away) SELECT * FROM unnest($1::int[],$2::int[],$3::int[],$4::int[])',[vals.map(v=>v[0]),vals.map(v=>v[1]),vals.map(v=>v[2]),vals.map(v=>v[3])]);}
-   await c.query("UPDATE rooms SET status='season',version=version+1 WHERE id=$1",[room.id]);await c.query('UPDATE room_managers SET ready=false WHERE room_id=$1',[room.id]);await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+   await c.query("UPDATE rooms SET status='season',version=version+1 WHERE id=$1",[room.id]);await c.query('UPDATE room_managers SET ready=false WHERE room_id=$1',[room.id]);if(M)await M.onStart(c,{...room,status:'season'});await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
   await bump(room.id,`Temporada ${room.season}/${room.season+1} iniciada! Clubes travados.`);s.json({ok:1});}));
 
  app.get('/api/rooms/:code/season',auth,wrap(async(r,s)=>{const room=await member(r);const comps=await q('SELECT * FROM competitions WHERE room_id=$1 AND season=$2 ORDER BY id',[room.id,room.season]);
@@ -66,6 +63,7 @@ module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump})=>{
  async function advance(roomId,why){const c=await pool.connect();const out=[];
   try{await c.query('BEGIN');const {rows:[room]}=await c.query('SELECT * FROM rooms WHERE id=$1 FOR UPDATE',[roomId]);if(room.status!=='season')throw fail('A temporada não está em andamento');
    const comps=(await c.query('SELECT * FROM competitions WHERE room_id=$1 AND season=$2 AND current_round<rounds_total ORDER BY id',[roomId,room.season])).rows;if(!comps.length)throw fail('Temporada encerrada');
+   if(M)await M.before(c,room);
    const hum=new Map((await c.query('SELECT m.club_id,u.nick FROM room_managers m JOIN users u ON u.id=m.user_id WHERE room_id=$1',[roomId])).rows.map(x=>[x.club_id,x.nick]));
    for(const comp of comps){const round=comp.current_round+1;const ms=(await c.query('SELECT * FROM matches WHERE comp_id=$1 AND round=$2',[comp.id,round])).rows;
     for(const m of ms){const H={club_id:m.home,...await xiFor(c,roomId,m.home),form:await form(c,comp.id,m.home)},A={club_id:m.away,...await xiFor(c,roomId,m.away),form:await form(c,comp.id,m.away)};
@@ -76,6 +74,7 @@ module.exports=({app,uni,q,pool,auth,wrap,fail,member,bump})=>{
       [comp.id,pl.map(x=>x[0].id),pl.map(x=>x[1]),pl.map(()=>1),pl.map(x=>res.goalsBy[x[0].id].g),pl.map(x=>res.goalsBy[x[0].id].a),pl.map(x=>res.ratings[x[0].id])]);
      if(hum.has(m.home)||hum.has(m.away))out.push({id:m.id,comp:comp.name,round,home:club(m.home).name,away:club(m.away).name,hg:res.hg,ag:res.ag});}
     await c.query('UPDATE competitions SET current_round=$2 WHERE id=$1',[comp.id,round]);}
+   if(M)await M.after(c,room);
    await c.query('UPDATE room_managers SET ready=false WHERE room_id=$1',[roomId]);
    const left=(await c.query('SELECT count(*)::int n FROM competitions WHERE room_id=$1 AND season=$2 AND current_round<rounds_total',[roomId,room.season])).rows[0].n;
    if(!left)await c.query("UPDATE rooms SET status='finished' WHERE id=$1",[roomId]);

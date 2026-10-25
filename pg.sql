@@ -14,3 +14,20 @@ CREATE TABLE IF NOT EXISTS matches(id SERIAL PRIMARY KEY,comp_id INT REFERENCES 
 CREATE INDEX IF NOT EXISTS m_comp ON matches(comp_id,round);
 CREATE TABLE IF NOT EXISTS player_stats(comp_id INT REFERENCES competitions(id) ON DELETE CASCADE,player_id INT,club_id INT,apps INT DEFAULT 0,goals INT DEFAULT 0,assists INT DEFAULT 0,rating_sum REAL DEFAULT 0,PRIMARY KEY(comp_id,player_id));
 CREATE TABLE IF NOT EXISTS lineups(room_id INT REFERENCES rooms(id) ON DELETE CASCADE,club_id INT,formation TEXT,starters INT[],PRIMARY KEY(room_id,club_id));
+-- Etapa 4: mercado
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS release_clause BIGINT;
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS morale INT;
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS wants_out BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS loan_from INT;
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS window_override TEXT;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS market_day INT NOT NULL DEFAULT 0;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS window_was_open BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE room_events ADD COLUMN IF NOT EXISTS user_id INT;
+CREATE TABLE IF NOT EXISTS offers(id SERIAL PRIMARY KEY,room_id INT REFERENCES rooms(id) ON DELETE CASCADE,player_id INT,buyer_club INT,seller_club INT,buyer_user INT,seller_user INT,fee BIGINT DEFAULT 0,swap_player_id INT,loan BOOLEAN NOT NULL DEFAULT false,wage BIGINT,role TEXT,years INT,status TEXT NOT NULL,counter_fee BIGINT,counter_wage BIGINT,bot_max BIGINT,counters INT NOT NULL DEFAULT 0,reason TEXT,deadline_day INT,created_day INT,created_at TIMESTAMPTZ DEFAULT now(),updated_at TIMESTAMPTZ DEFAULT now());
+CREATE INDEX IF NOT EXISTS of_room ON offers(room_id,status);
+CREATE TABLE IF NOT EXISTS negotiations(room_id INT REFERENCES rooms(id) ON DELETE CASCADE,buyer_club INT,player_id INT,club_fails INT NOT NULL DEFAULT 0,player_fails INT NOT NULL DEFAULT 0,blocked_until INT NOT NULL DEFAULT -1,PRIMARY KEY(room_id,buyer_club,player_id));
+CREATE TABLE IF NOT EXISTS transfers(id SERIAL PRIMARY KEY,room_id INT REFERENCES rooms(id) ON DELETE CASCADE,season INT,day INT,player_id INT,from_club INT,to_club INT,fee BIGINT,wage BIGINT,kind TEXT,human BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ DEFAULT now());
+CREATE INDEX IF NOT EXISTS tr_room ON transfers(room_id,id DESC);
+CREATE TABLE IF NOT EXISTS watchlist(room_id INT REFERENCES rooms(id) ON DELETE CASCADE,user_id INT,player_id INT,PRIMARY KEY(room_id,user_id,player_id));

@@ -32,3 +32,6 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:30px}
 #installBtn{margin-left:8px;background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600}
 #iosTip{position:fixed;left:10px;right:10px;bottom:10px;background:#1f2937;color:#eee;padding:12px;border-radius:10px;box-shadow:0 4px 20px #0008;z-index:99;font-size:14px}
 #iosTip a{float:right;color:#aaa;text-decoration:none}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}.tabs a{padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.06);color:inherit;text-decoration:none;font-size:14px}.tabs a.on{background:var(--acc,#2f7);color:#000;font-weight:700}
+.tag{font-size:11px;padding:1px 6px;border-radius:6px;background:rgba(255,200,0,.18);color:#fc0;margin-left:4px}
+.form label{display:block;font-size:13px;color:var(--mut);margin:6px 0}.form label input,.form label select{margin-top:4px}
