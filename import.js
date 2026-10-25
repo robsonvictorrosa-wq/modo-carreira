@@ -10,7 +10,7 @@ const CONMEBOL=new Set(['CONMEBOL Libertadores','CONMEBOL Sudamericana']);
 const LEAGUE_META={'LALIGA EA SPORTS':['Espanha',1],'LALIGA HYPERMOTION':['Espanha',2],'Premier League':['Inglaterra',1],'EFL Championship':['Inglaterra',2],'EFL League One':['Inglaterra',3],'EFL League Two':['Inglaterra',4],'Bundesliga':['Alemanha',1],'Bundesliga 2':['Alemanha',2],'3. Liga':['Alemanha',3],'Serie A Enilive':['Itália',1],'Serie BKT':['Itália',2],"Ligue 1 McDonald's":['França',1],'Ligue 2 BKT':['França',2],'Liga Portugal':['Portugal',1],'Eredivisie':['Holanda',1],'1A Pro League':['Bélgica',1],'Trendyol Süper Lig':['Turquia',1],'Scottish Premiership':['Escócia',1],'ROSHN Saudi League':['Arábia Saudita',1],'Major League Soccer':['EUA',1],'Liga BBVA MX':['México',1],'Liga Profesional de Fútbol':['Argentina',1],'Eliteserien':['Noruega',1],'Allsvenskan':['Suécia',1],'3F Superliga':['Dinamarca',1],'SUPERLIGA':['Romênia',1],'Brack Super League':['Suíça',1],'Österreichische Fußball-Bundesliga':['Áustria',1],'PKO Bank Polski Ekstraklasa':['Polônia',1],'K League 1':['Coreia do Sul',1],'Chinese Football Association Super League':['China',1],'Isuzu UTE A-League':['Austrália',1],'Indian Super League':['Índia',1],"SSE Airtricity Men's Premier Division":['Irlanda',1]};
 const WOMEN=new Set(["National Women's Soccer League",'Google Pixel Frauen-Bundesliga','Arkema Première Ligue','Barclays Women’s Super League','Liga F Moeve','Resto do mundo feminina']);
 // clube -> país (CONMEBOL) pela nacionalidade majoritária
-const byClub={};for(const p of P){if(!p.club)continue;(byClub[p.club]??={n:{},league:p.league,g:p.gender,players:[]}).players.push(p);const o=byClub[p.club];o.n[p.nationality]=(o.n[p.nationality]||0)+1;}
+const ck=p=>p.club+'|'+(p.gender==='Mulher'?'F':'M');const byClub={};for(const p of P){if(!p.club)continue;(byClub[ck(p)]??={name:p.club,n:{},league:p.league,g:p.gender,players:[]}).players.push(p);const o=byClub[ck(p)];o.n[p.nationality]=(o.n[p.nationality]||0)+1;}
 const leagueOf=c=>{const o=byClub[c];if(!o.league)return 'Sem clube (Livres)';if(!CONMEBOL.has(o.league))return o.league;const top=Object.entries(o.n).sort((a,b)=>b[1]-a[1])[0][0];return top==='Brasil'?'Brasileirão (CONMEBOL)':'CONMEBOL – '+top;};
 const leagues={};const insL=db.prepare('INSERT INTO leagues(name,country,tier,gender,kind,original_name) VALUES(?,?,?,?,?,?)');
 const getL=(name,orig,g)=>{if(leagues[name])return leagues[name];let country='Internacional',tier=1,kind='league';
@@ -19,8 +19,8 @@ const getL=(name,orig,g)=>{if(leagues[name])return leagues[name];let country='In
 const insC=db.prepare('INSERT INTO clubs(name,league_id) VALUES(?,?)');
 const insP=db.prepare(`INSERT INTO players(id,name,nationality,club_id,base_club_id,positions,primary_position,overall,potential,age,height_cm,weight_kg,preferred_foot,weak_foot,skill_moves,gender,market_value,wage,release_clause,contract_end,stats) VALUES(@id,@name,@nationality,@club_id,@club_id,@positions,@primary_position,@overall,@potential,@age,@height_cm,@weight_kg,@preferred_foot,@weak_foot,@skill_moves,@gender,@mv,@wg,@rc,@contract_end,@stats)`);
 db.transaction(()=>{const clubId={};
- for(const c of Object.keys(byClub)){const o=byClub[c];clubId[c]=insC.run(c,getL(leagueOf(c),o.league,o.g)).lastInsertRowid;}
- for(const p of P){const cid=clubId[p.club]??null;
+ for(const c of Object.keys(byClub)){const o=byClub[c];clubId[c]=insC.run(o.name,getL(leagueOf(c),o.league,o.g)).lastInsertRowid;}
+ for(const p of P){const cid=p.club?clubId[ck(p)]:null;
   insP.run({...p,club_id:cid,positions:JSON.stringify(p.positions||[]),mv:money(p.market_value_display),wg:money(p.wage_display),rc:money(p.release_clause_display),stats:JSON.stringify(p.stats||{})});}
 })();
 db.exec(`UPDATE clubs SET n_players=(SELECT count(*) FROM players WHERE club_id=clubs.id),

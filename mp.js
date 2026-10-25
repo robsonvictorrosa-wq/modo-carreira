@@ -49,6 +49,7 @@ module.exports=(app,uni)=>{
  app.post('/api/rooms/:code/settings',auth,wrap(async(r,s)=>{const room=await member(r);if(room.owner_id!==r.user.id)throw fail('Só o dono da sala',403);
   const max=Math.min(Math.max(parseInt(r.body?.max_managers)||room.max_managers,2),20);const [{n}]=await q('SELECT count(*)::int n FROM room_managers WHERE room_id=$1',[room.id]);if(max<n)throw fail('Já há '+n+' técnicos');
   await q('UPDATE rooms SET max_managers=$2 WHERE id=$1',[room.id,max]);await bump(room.id,'Limite de técnicos: '+max);s.json({ok:1});}));
+ app.delete('/api/rooms/:code',auth,wrap(async(r,s)=>{const room=await member(r);if(room.owner_id!==r.user.id)throw fail('Só o dono da sala',403);await q('DELETE FROM rooms WHERE id=$1',[room.id]);s.json({ok:1});}));
  // Minha carreira: elenco da sala = universo + overrides da sala
  app.get('/api/rooms/:code/career',auth,wrap(async(r,s)=>{const room=await member(r);const [m]=await q('SELECT club_id FROM room_managers WHERE room_id=$1 AND user_id=$2',[room.id,r.user.id]);
   if(!m.club_id)return s.json({room,club:null});
