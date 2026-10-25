@@ -1,0 +1,5 @@
+node_modules
+data/*.json
+data/*.db*
+*.log
+PUBLIC_URL.txt
